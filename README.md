@@ -3,6 +3,8 @@ Ansible Gogs
 
 An Ansible role to install and manage the gogs git service
 
+https://github.com/gogs/docs-api
+
 Build Status
 ------------
 
