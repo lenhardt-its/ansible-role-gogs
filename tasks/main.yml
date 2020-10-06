@@ -1,0 +1,217 @@
+---
+- name: gather operating system variables
+  include_vars: "{{ item }}"
+  with_first_found:
+    - "{{ ansible_distribution | lower }}-{{ ansible_distribution_version | lower }}.yml"
+    - "{{ ansible_distribution | lower }}-{{ ansible_distribution_major_version | lower }}.yml"
+    - "{{ ansible_distribution_file_variety | lower }}-{{ ansible_distribution_major_version | lower }}.yml"
+    - "{{ ansible_os_family | lower }}-{{ ansible_distribution_major_version | lower }}.yml"
+    - "{{ ansible_distribution | lower }}.yml"
+    - "{{ ansible_os_family | lower }}-{{ ansible_distribution_version.split('.')[0] }}.yml"
+    - "{{ ansible_os_family | lower }}.yml"
+  become: true
+  tags: gogs
+
+- name: create gogs system group
+  group:
+    name: "{{ gogs_system_group }}"
+    system: true
+    state: present
+  become: true
+  tags: gogs
+
+- name: create gogs system user
+  user:
+    name: "{{ gogs_system_user }}"
+    system: true
+    shell: "/usr/sbin/nologin"
+    group: "{{ gogs_system_group }}"
+    home: ""{{ gogs_home }}"
+    createhome: yes
+  become: true
+  tags: gogs
+
+- name: install dependencies
+  package:
+    name: "{{ item }}"
+    state: present
+  with_items:
+    - unzip
+    - git
+  tags: gogs
+  become: true
+
+- name: check if gogs is installed
+  stat:
+    path: "{{ gogs_home }}/gogs"
+  register: __gogs_is_installed
+  become: true
+  tags: gogs
+
+- name: gather currently installed gogs version (if any)
+  command: "{{ gogs_home }}/gogs --version"
+  args:
+    warn: false
+  changed_when: false
+  register: __gogs_current_version_output
+  when: __gogs_is_installed.stat.exists
+  become: true
+  tags: gogs
+
+- block:
+    - name: get latest release
+      uri:
+        url: "https://api.github.com/repos/gogs/gogs/releases/latest"
+        method: GET
+        return_content: true
+        status_code: 200
+        body_format: json
+        validate_certs: false
+        user: "{{ lookup('env', 'GH_USER') | default(omit) }}"
+        password: "{{ lookup('env', 'GH_TOKEN') | default(omit) }}"
+      environment: "{{proxy_env}}"
+      no_log: "{{ not lookup('env', 'MOLECULE_DEBUG') | bool }}"
+      register: _latest_release
+      until: _latest_release.status == 200
+      retries: 5
+      become: true
+      tags: gogs
+
+    - name: "set gogs version to {{ _latest_release.json.tag_name[1:] }}"
+      set_fact:
+        gogs_version: "{{ _latest_release.json.tag_name[1:] }}"
+      become: true
+      tags: gogs
+  when:
+    - gogs_version == "latest"
+
+- block:
+  - name: get checksum list from github
+    set_fact:
+      _checksums: "{{ lookup('url', 'https://github.com/gogs/gogs/releases/download/v' + gogs_version + '/sha256sums.txt', wantlist=True) | list }}"
+    environment: "{{ proxy_env }}"
+    run_once: true
+    become: true
+    tags: gogs
+
+  - name: "get checksum for {{ go_arch }} architecture"
+    set_fact:
+      gogs_checksum: "{{ item.split(' ')[0] }}"
+    with_items:
+      - "{{ lookup('url', 'https://github.com/gogs/gogs/releases/download/v' + gogs_version + '/sha256sums.txt', wantlist=True) | list }}"
+    when:
+      - "('linux-' + go_arch + '.tar.gz') in item"
+    become: true
+    tags: gogs
+
+  - name: download gogs binary to local folder
+    become: false
+    get_url:
+      url: "https://github.com/gogs/gogs/releases/download/v{{ gogs_version }}/linux-{{ go_arch }}.tar.gz"
+      dest: "/tmp/gogs-{{ gogs_version }}.linux-{{ go_arch }}.tar.gz"
+      checksum: "sha256:{{ gogs_checksum }}"
+    environment: "{{proxy_env}}"
+    register: _download_archive
+    until: _download_archive is succeeded
+    retries: 5
+    delay: 2
+    # run_once: true # <-- this can't be set due to multi-arch support
+    delegate_to: localhost
+    check_mode: false
+    become: true
+    tags: gogs
+
+  - name: unpack gogs binaries
+    become: false
+    unarchive:
+      src: "/tmp/gogs-{{ gogs_version }}.linux-{{ go_arch }}.tar.gz"
+      dest: "/tmp"
+      creates: "/tmp/gogs-{{ gogs_version }}.linux-{{ go_arch }}/gogs"
+    delegate_to: localhost
+    check_mode: false
+    become: true
+    tags: gogs
+
+  - name: propagate official gogs and amtool binaries
+    copy:
+      src: "/tmp/gogs-{{ gogs_version }}.linux-{{ go_arch }}/{{ item }}"
+      dest: "{{ gogs_home }}/{{ item }}"
+      mode: 0755
+      owner: "{{ gogs_system_user }}"
+      group: "{{ gogs_system_group }}"
+    with_items:
+      - gogs
+      - template
+      - public
+    notify: restart gogs
+    become: true
+    tags: gogs
+  when: (not __gogs_is_installed.stat.exists) or (__gogs_current_version_output.stderr_lines[0].split(" ")[2] != gogs_version)
+
+- name: copy gogs systemd unit file into place (for systemd systems)
+  template:
+    src: gogs.service.j2
+    dest: /etc/systemd/system/gogs.service
+    owner: root
+    group: root
+    mode: 0644
+  notify: restart gogs
+  tags: gogs
+  become: true
+
+- name: configure Gogs
+  include_tasks: configure_gogs.yml
+
+- name: install selinux dependencies
+  package:
+    name: "{{ item }}"
+    state: present
+  environment: "{{ proxy_env }}"
+  with_items: "{{ gogs_selinux_packages }}"
+  register: _install_packages
+  until: _install_packages is succeeded
+  retries: 5
+  delay: 2
+  when:
+    - ansible_version.full is version_compare('2.4', '>=')
+    - ansible_selinux.status == "enabled"
+  become: true
+  tags: gogs
+
+- name: allow binding to port in selinux
+  seport:
+    ports: "{{ gogs_http_port }}"
+    proto: tcp
+    setype: http_port_t
+    state: present
+  when:
+    - ansible_version.full is version_compare('2.4', '>=')
+    - ansible_selinux.status == "enabled"
+  become: true
+  tags: gogs
+
+- name: allow access to port on firewalld
+  firewalld:
+    port: "{{ gogs_http_port }}/tcp"
+    permanent: yes
+    state: true
+  when: gogs_firewalld_state == "enabled"
+  register: "_firewalld_gogs_state"
+  become: true
+  tags: gogs
+
+- name: reload firewalld service
+  service:
+    name: firewalld
+    state: reloaded
+  when: _firewalld_gogs_state['changed']
+  become: true
+  tags: gogs
+
+- name: start and enable gogs service
+  systemd:
+    name: gogs
+    state: started
+    enabled: yes
+  tags: gogs
+  become: true

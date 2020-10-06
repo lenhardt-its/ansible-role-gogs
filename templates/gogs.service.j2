@@ -1,0 +1,28 @@
+{{ ansible_managed | comment }}
+[Unit]
+Description=Gogs Git Server
+Dokumentation=https://github.com/gogs/gogs
+After=syslog.target
+After=network.target
+After=mariadb.service mysqld.service postgresql.service memcached.service redis.service
+
+[Service]
+Type=simple
+User={{ gogs_user }}
+Group={{ gogs_user }}
+WorkingDirectory={{ gogs_home }}
+ExecStart={{ gogs_home }}/gogs web -port {{ gogs_http_port }}
+Restart=always
+Environment=USER=git HOME={{ gogs_home }}
+SyslogIdentifier=gogs
+Restart=always
+RestartSec=5
+# Some distributions may not support these hardening directives. If you cannot start the service due
+# to an unknown option, comment out the ones not supported by your version of systemd.
+ProtectSystem=full
+PrivateDevices=yes
+PrivateTmp=yes
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target

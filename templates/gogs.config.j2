@@ -1,0 +1,88 @@
+# {{ ansible_managed }}
+
+APP_NAME                = Gogs
+RUN_USER                = {{ gogs_user }}
+RUN_MODE                = {{ gogs_environment }}
+
+[database]
+{% if gogs_db_type == "mysql" %}
+DB_TYPE                 = mysql
+HOST                    = {{ gogs_mysql_host }}:{{ gogs_mysql_port }}
+NAME                    = {{ gogs_mysql_db }}
+USER                    = {{ gogs_mysql_user }}
+PASSWD                  = {{ gogs_mysql_pass }}
+{% endif %}
+{% if gogs_db_type == "postgres" %}
+DB_TYPE                 = postgres
+HOST                    = {{ gogs_postgres_host }}:{{ gogs_postgres_port }}
+NAME                    = {{ gogs_postgres_db }}
+USER                    = {{ gogs_postgres_user }}
+PASSWD                  = {{ gogs_postgres_pass }}
+SSL_MODE                = disable{{ gogs_postgres_sslmode }}
+{% endif %}
+{% if gogs_db_type == "sqlite3" %}
+DB_TYPE                 = sqlite3
+PATH                    = data/gogs.db
+{% endif %}
+
+{% if gogs_prometheus is sameas true %}
+[prometheus]
+ENABLED                 = {{ gogs_prometheus }}
+ENABLE_BASIC_AUTH       = {{ gogs_prometheus_basic_auth }}
+BASIC_AUTH_USERNAME     = {{ gogs_prometheus_basic_auth_user }}
+BASIC_AUTH_PASSWORD     = {{ gogs_prometheus_basic_auth_pass }}
+{% endif %}
+
+[repository]
+ROOT                    = {{ gogs_home }}/gogs-repositories
+
+[admin]
+; Disable regular (non-admin) users to create organizations
+DISABLE_REGULAR_ORG_CREATION = true
+
+[server]
+DOMAIN                  = {{ gogs_domain }}
+HTTP_PORT               = {{ gogs_http_port }}
+ROOT_URL                = {{ gogs_root_url }}
+PROTOCOL                = {{ gogs_domain }}
+DISABLE_SSH             = true
+SSH_PORT                = 7999
+START_SSH_SERVER        = false
+OFFLINE_MODE            = false
+
+[mailer]
+ENABLED                 = true
+HOST                    = mail.{{ mail_domain }}:587
+FROM                    = service@{{ mail_domain }}
+USER                    = service@{{ mail_domain }}
+PASSWD                  = {{ mail_pass }}
+
+[service]
+REGISTER_EMAIL_CONFIRM  = true
+ENABLE_NOTIFY_MAIL      = true
+DISABLE_REGISTRATION    = false
+ENABLE_CAPTCHA          = true
+REQUIRE_SIGNIN_VIEW     = false
+
+[picture]
+DISABLE_GRAVATAR        = false
+ENABLE_FEDERATED_AVATAR = false
+
+[attachment]
+ENABLED                 = true
+PATH                    = {{ gogs_home }}/gogs/attachments
+ALLOWED_TYPES           = image/jpeg|image/png
+MAX_SIZE                = 4
+MAX_FILES               = 25
+
+[session]
+PROVIDER                = file
+
+[log]
+MODE                    = file
+LEVEL                   = Info
+ROOT_PATH               = {{ gogs_home }}/gogs/log
+
+[security]
+INSTALL_LOCK            = true
+SECRET_KEY              = {{ gogs_secret_key }}

@@ -1,0 +1,60 @@
+---
+proxy_env: {}
+gogs_system_user: gogs
+gogs_system_group: gogs
+gogs_home: /var/lib/gogs
+gogs_version: 0.11.91
+gogs_firewalld_state: "enabled"
+
+
+gogs_environment: prod
+gogs_protocol: http
+gogs_root_url: "git.{{ ansible_domain }}"
+gogs_secret_key: "czKH7uDehbwHWyB"
+gogs_package: linux_amd64.tar.gz
+gogs_reverse_proxy: true
+gogs_domain: "{{ ansible_hostname}}.{{ ansible_domain }}"
+
+
+# Gogs database settings
+gogs_db_type: SQLite3
+gogs_db_host: "127.0.0.1:3306"
+gogs_db_user: root
+gogs_db_pass: default
+gogs_db_name: gogs
+gogs_db_path: "{{ gogs_home }}/data/gogs.db"
+
+# Gogs application general settings
+gogs_app_name: "Gogs: A painless self-hosted Git service"
+gogs_repo_root_path: "{{ gogs_home }}/gogs-repositories"
+gogs_hostname: "{{ hostvars[inventory_hostname]['ansible_default_ipv4']['address'] }}"
+gogs_http_port: 3000
+gogs_ssh_port: 22
+gogs_log_path: "{{ gogs_home }}/log"
+
+# Gogs server and other services settings
+gogs_enable_captcha: true
+
+# Gogs connection timeout settings
+gogs_connection_retries: 60
+gogs_connection_delay: 5
+
+# Gogs admin account settings
+gogs_admin_username: gogs
+gogs_admin_password: gogs
+gogs_admin_fullname: Gogs Administrator
+gogs_admin_email: gogs.admin@gogs.io
+
+# Gogs users
+gogs_users:
+  - username: "{{ gogs_admin_username }}"
+    password: "{{ gogs_admin_password }}"
+    fullname: "{{ gogs_admin_fullname }}"
+    email: "{{ gogs_admin_email }}"
+    admin: true
+
+# Gogs organizations
+gogs_orgs: []
+
+# Gogs repositories
+gogs_repos: []

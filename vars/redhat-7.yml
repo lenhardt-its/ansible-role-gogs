@@ -1,0 +1,4 @@
+---
+gogs_selinux_packages:
+  - libselinux-python
+  - policycoreutils-python

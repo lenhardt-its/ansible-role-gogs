@@ -1,0 +1,27 @@
+---
+- name: get organization owners - {{ org_item.name }}
+  set_fact:
+    org_owners: "{{ gogs_users|selectattr('username', 'equalto', org_item.owner)|list }}"
+
+- name: get organization {{ org_item.name }}
+  uri:
+    url: "http://{{ gogs_hostname }}:{{ gogs_http_port }}/api/v1/orgs/{{ org_item.name }}"
+    headers:
+      Content-Type: application/json
+      Authorization: "token {{ gogs_access_token }}"
+    status_code: [200, 404]
+  register: gogs_get_org_resp
+
+- name: create organization - {{ org_item.name }}
+  uri:
+    url: "http://{{ gogs_hostname }}:{{ gogs_http_port }}/api/v1/admin/users/{{ org_owners[0].username }}/orgs"
+    method: POST
+    headers:
+      Content-Type: application/json
+      Authorization: "token {{ gogs_access_token }}"
+    body: "{{ lookup('template', 'templates/gogs.org.json.j2') }}"
+    body_format: json
+    status_code: 201
+  register: gogs_create_org_resp
+  when: gogs_get_org_resp.status == 404
+  changed_when: gogs_create_org_resp.status == 201

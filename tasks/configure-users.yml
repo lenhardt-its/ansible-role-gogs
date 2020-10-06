@@ -1,0 +1,23 @@
+---
+- name: get user - {{ user_item.username }}
+  uri:
+    url: "http://{{ gogs_hostname }}:{{ gogs_http_port }}/api/v1/users/{{ user_item.username }}"
+    headers:
+      Content-Type: application/json
+      Authorization: "token {{ gogs_access_token }}"
+    status_code: [200, 404]
+  register: gogs_get_user_resp
+
+- name: create user - {{ user_item.username }}
+  uri:
+    url: "http://{{ gogs_hostname }}:{{ gogs_http_port }}/api/v1/admin/users"
+    method: POST
+    headers:
+      Content-Type: application/json
+      Authorization: "token {{ gogs_access_token }}"
+    body: "{{ lookup('template', 'templates/gogs.user.json.j2') }}"
+    body_format: json
+    status_code: 201
+  register: gogs_create_user_resp
+  when: gogs_get_user_resp.status == 404
+  changed_when: gogs_create_user_resp.status == 201
