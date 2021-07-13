@@ -1,18 +1,5 @@
 ---
-- name: gather operating system variables
-  include_vars: "{{ item }}"
-  with_first_found:
-    - "{{ ansible_distribution | lower }}-{{ ansible_distribution_version | lower }}.yml"
-    - "{{ ansible_distribution | lower }}-{{ ansible_distribution_major_version | lower }}.yml"
-    - "{{ ansible_distribution_file_variety | lower }}-{{ ansible_distribution_major_version | lower }}.yml"
-    - "{{ ansible_os_family | lower }}-{{ ansible_distribution_major_version | lower }}.yml"
-    - "{{ ansible_distribution | lower }}.yml"
-    - "{{ ansible_os_family | lower }}-{{ ansible_distribution_version.split('.')[0] }}.yml"
-    - "{{ ansible_os_family | lower }}.yml"
-  become: true
-  tags: gogs
-
-- name: create gogs system group
+- name: create system group
   group:
     name: "{{ gogs_system_group }}"
     system: true
@@ -20,13 +7,13 @@
   become: true
   tags: gogs
 
-- name: create gogs system user
+- name: create system user
   user:
     name: "{{ gogs_system_user }}"
     system: true
     shell: "/usr/sbin/nologin"
     group: "{{ gogs_system_group }}"
-    home: ""{{ gogs_home }}"
+    home: "{{ gogs_home }}"
     createhome: yes
   become: true
   tags: gogs
@@ -41,14 +28,14 @@
   tags: gogs
   become: true
 
-- name: check if gogs is installed
+- name: check if is installed
   stat:
     path: "{{ gogs_home }}/gogs"
   register: __gogs_is_installed
   become: true
   tags: gogs
 
-- name: gather currently installed gogs version (if any)
+- name: gather currently installed version (if any)
   command: "{{ gogs_home }}/gogs --version"
   args:
     warn: false
@@ -104,8 +91,7 @@
     become: true
     tags: gogs
 
-  - name: download gogs binary to local folder
-    become: false
+  - name: download binary to local folder
     get_url:
       url: "https://github.com/gogs/gogs/releases/download/v{{ gogs_version }}/linux-{{ go_arch }}.tar.gz"
       dest: "/tmp/gogs-{{ gogs_version }}.linux-{{ go_arch }}.tar.gz"
@@ -121,8 +107,7 @@
     become: true
     tags: gogs
 
-  - name: unpack gogs binaries
-    become: false
+  - name: unpack binaries
     unarchive:
       src: "/tmp/gogs-{{ gogs_version }}.linux-{{ go_arch }}.tar.gz"
       dest: "/tmp"
@@ -132,7 +117,7 @@
     become: true
     tags: gogs
 
-  - name: propagate official gogs and amtool binaries
+  - name: propagate binaries
     copy:
       src: "/tmp/gogs-{{ gogs_version }}.linux-{{ go_arch }}/{{ item }}"
       dest: "{{ gogs_home }}/{{ item }}"
@@ -148,7 +133,7 @@
     tags: gogs
   when: (not __gogs_is_installed.stat.exists) or (__gogs_current_version_output.stderr_lines[0].split(" ")[2] != gogs_version)
 
-- name: copy gogs systemd unit file into place (for systemd systems)
+- name: copy systemd unit file
   template:
     src: gogs.service.j2
     dest: /etc/systemd/system/gogs.service
@@ -162,53 +147,7 @@
 - name: configure Gogs
   include_tasks: configure_gogs.yml
 
-- name: install selinux dependencies
-  package:
-    name: "{{ item }}"
-    state: present
-  environment: "{{ proxy_env }}"
-  with_items: "{{ gogs_selinux_packages }}"
-  register: _install_packages
-  until: _install_packages is succeeded
-  retries: 5
-  delay: 2
-  when:
-    - ansible_version.full is version_compare('2.4', '>=')
-    - ansible_selinux.status == "enabled"
-  become: true
-  tags: gogs
-
-- name: allow binding to port in selinux
-  seport:
-    ports: "{{ gogs_http_port }}"
-    proto: tcp
-    setype: http_port_t
-    state: present
-  when:
-    - ansible_version.full is version_compare('2.4', '>=')
-    - ansible_selinux.status == "enabled"
-  become: true
-  tags: gogs
-
-- name: allow access to port on firewalld
-  firewalld:
-    port: "{{ gogs_http_port }}/tcp"
-    permanent: yes
-    state: true
-  when: gogs_firewalld_state == "enabled"
-  register: "_firewalld_gogs_state"
-  become: true
-  tags: gogs
-
-- name: reload firewalld service
-  service:
-    name: firewalld
-    state: reloaded
-  when: _firewalld_gogs_state['changed']
-  become: true
-  tags: gogs
-
-- name: start and enable gogs service
+- name: ensure service is started and enabled
   systemd:
     name: gogs
     state: started

@@ -3,9 +3,7 @@ proxy_env: {}
 gogs_system_user: gogs
 gogs_system_group: gogs
 gogs_home: /var/lib/gogs
-gogs_version: 0.11.91
-gogs_firewalld_state: "enabled"
-
+gogs_version: 0.12.03
 
 gogs_environment: prod
 gogs_protocol: http
@@ -14,7 +12,6 @@ gogs_secret_key: "czKH7uDehbwHWyB"
 gogs_package: linux_amd64.tar.gz
 gogs_reverse_proxy: true
 gogs_domain: "{{ ansible_hostname}}.{{ ansible_domain }}"
-
 
 # Gogs database settings
 gogs_db_type: SQLite3
