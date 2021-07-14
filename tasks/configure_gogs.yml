@@ -65,7 +65,7 @@
   when: gogs_users is defined
 
 - name: create organizations
-  include: configure-org.yml
+  include: configure-orgs.yml
   with_items: "{{ gogs_orgs }}"
   loop_control:
     loop_var: org_item

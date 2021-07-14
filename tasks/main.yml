@@ -56,7 +56,7 @@
         validate_certs: false
         user: "{{ lookup('env', 'GH_USER') | default(omit) }}"
         password: "{{ lookup('env', 'GH_TOKEN') | default(omit) }}"
-      environment: "{{proxy_env}}"
+      environment: "{{ proxy_env }}"
       no_log: "{{ not lookup('env', 'MOLECULE_DEBUG') | bool }}"
       register: _latest_release
       until: _latest_release.status == 200
@@ -96,7 +96,7 @@
       url: "https://github.com/gogs/gogs/releases/download/v{{ gogs_version }}/linux-{{ go_arch }}.tar.gz"
       dest: "/tmp/gogs-{{ gogs_version }}.linux-{{ go_arch }}.tar.gz"
       checksum: "sha256:{{ gogs_checksum }}"
-    environment: "{{proxy_env}}"
+    environment: "{{ proxy_env }}"
     register: _download_archive
     until: _download_archive is succeeded
     retries: 5
